@@ -7,32 +7,21 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import com.xchen.example.akka.example2.model.Command;
+import com.xchen.example.akka.example2.model.DeviceGroupDeviceTerminated;
+import com.xchen.example.akka.example2.model.DeviceManagerRequestTrackDevice;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class DeviceGroup extends AbstractBehavior<DeviceGroup.Command> {
-    public interface Command {
-    }
-
-    private static class DeviceTerminated implements Command {
-        public final ActorRef<Device.Command> device;
-        public final String groupId;
-        public final String deviceId;
-
-        DeviceTerminated(ActorRef<Device.Command> device, String groupId, String deviceId) {
-            this.device = device;
-            this.groupId = groupId;
-            this.deviceId = deviceId;
-        }
-    }
+public class DeviceGroup extends AbstractBehavior<Command> {
 
     public static Behavior<Command> create(String groupId) {
         return Behaviors.setup(context -> new DeviceGroup(context, groupId));
     }
 
     private final String groupId;
-    private final Map<String, ActorRef<Device.Command>> deviceIdToActor = new HashMap<>();
+    private final Map<String, ActorRef<Command>> deviceIdToActor = new HashMap<>();
 
     private DeviceGroup(ActorContext<Command> context, String groupId) {
         super(context);
@@ -40,17 +29,17 @@ public class DeviceGroup extends AbstractBehavior<DeviceGroup.Command> {
         context.getLog().info("DeviceGroup {} started", groupId);
     }
 
-    private DeviceGroup onTrackDevice(DeviceManager.RequestTrackDevice trackMsg) {
-        if (this.groupId.equals(trackMsg.groupId)) {
-            ActorRef<Device.Command> deviceActor = deviceIdToActor.get(trackMsg.deviceId);
+    private DeviceGroup onTrackDevice(DeviceManagerRequestTrackDevice trackMsg) {
+        if (this.groupId.equals(trackMsg.groupId())) {
+            ActorRef<Command> deviceActor = deviceIdToActor.get(trackMsg.deviceId());
             if (deviceActor != null) {
-                trackMsg.replyTo.tell(new DeviceManager.DeviceRegistered(deviceActor));
+                trackMsg.replyTo().tell(new DeviceManager.DeviceRegistered(deviceActor));
             } else {
-                getContext().getLog().info("Creating device actor for {}", trackMsg.deviceId);
-                deviceActor = getContext().spawn(Device.create(groupId, trackMsg.deviceId), "device-" + trackMsg.deviceId);
-                getContext().watchWith(deviceActor, new DeviceTerminated(deviceActor, groupId, trackMsg.deviceId));
-                deviceIdToActor.put(trackMsg.deviceId, deviceActor);
-                trackMsg.replyTo.tell(new DeviceManager.DeviceRegistered(deviceActor));
+                getContext().getLog().info("Creating device actor for {}", trackMsg.deviceId());
+                deviceActor = getContext().spawn(Device.create(groupId, trackMsg.deviceId()), "device-" + trackMsg.deviceId());
+                getContext().watchWith(deviceActor, new DeviceGroupDeviceTerminated(deviceActor, groupId, trackMsg.deviceId()));
+                deviceIdToActor.put(trackMsg.deviceId(), deviceActor);
+                trackMsg.replyTo().tell(new DeviceManager.DeviceRegistered(deviceActor));
             }
         } else {
             getContext().getLog().warn("Ignoring TrackDevice request for {}. This actor is responsible for {}.",
@@ -62,8 +51,8 @@ public class DeviceGroup extends AbstractBehavior<DeviceGroup.Command> {
     @Override
     public Receive<Command> createReceive() {
         return newReceiveBuilder()
-                .onMessage(DeviceManager.RequestTrackDevice.class, this::onTrackDevice)
-                .onMessage(DeviceTerminated.class, this::onTerminated)
+                .onMessage(DeviceManagerRequestTrackDevice.class, this::onTrackDevice)
+                .onMessage(DeviceGroupDeviceTerminated.class, this::onTerminated)
                 .onMessage(DeviceManager.RequestDeviceList.class,
                         r -> r.groupId.equals(groupId),
                         this::onDeviceList)
@@ -76,9 +65,9 @@ public class DeviceGroup extends AbstractBehavior<DeviceGroup.Command> {
         return this;
     }
 
-    private Behavior<Command> onTerminated(DeviceTerminated t) {
-        getContext().getLog().info("Device actor for {} has been terminated", t.deviceId);
-        deviceIdToActor.remove(t.deviceId);
+    private Behavior<Command> onTerminated(DeviceGroupDeviceTerminated t) {
+        getContext().getLog().info("Device actor for {} has been terminated", t.deviceId());
+        deviceIdToActor.remove(t.deviceId());
         return this;
     }
 
