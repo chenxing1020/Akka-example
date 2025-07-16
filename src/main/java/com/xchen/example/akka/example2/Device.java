@@ -1,6 +1,5 @@
 package com.xchen.example.akka.example2;
 
-import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
 import akka.actor.typed.javadsl.AbstractBehavior;
@@ -8,6 +7,10 @@ import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import com.xchen.example.akka.example2.model.*;
+import com.xchen.example.akka.example2.model.command.Command;
+import com.xchen.example.akka.example2.model.command.DeviceReadTemperature;
+import com.xchen.example.akka.example2.model.command.DeviceRecordTemperature;
+import com.xchen.example.akka.example2.model.command.DeviceStopped;
 
 import java.util.Optional;
 

@@ -1,4 +1,4 @@
-package com.xchen.example.akka.example2.model;
+package com.xchen.example.akka.example2.model.command;
 
 import akka.actor.typed.ActorRef;
 

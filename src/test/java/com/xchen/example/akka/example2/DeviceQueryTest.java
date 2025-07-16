@@ -3,10 +3,12 @@ package com.xchen.example.akka.example2;
 import akka.actor.testkit.typed.javadsl.TestKitJunitResource;
 import akka.actor.testkit.typed.javadsl.TestProbe;
 import akka.actor.typed.ActorRef;
-import com.xchen.example.akka.example2.model.Command;
-import com.xchen.example.akka.example2.model.DeviceGroupQueryRespondTemperature;
-import com.xchen.example.akka.example2.model.DeviceReadTemperature;
 import com.xchen.example.akka.example2.model.DeviceRespondTemperature;
+import com.xchen.example.akka.example2.model.RespondAllTemperatures;
+import com.xchen.example.akka.example2.model.TemperatureReading;
+import com.xchen.example.akka.example2.model.command.Command;
+import com.xchen.example.akka.example2.model.command.DeviceGroupQueryRespondTemperature;
+import com.xchen.example.akka.example2.model.command.DeviceReadTemperature;
 import org.junit.ClassRule;
 import org.junit.Test;
 
@@ -24,8 +26,8 @@ public class DeviceQueryTest {
 
     @Test
     public void testReturnTemperatureValueForWorkingDevices() {
-        TestProbe<DeviceManager.RespondAllTemperatures> requester =
-                testKit.createTestProbe(DeviceManager.RespondAllTemperatures.class);
+        TestProbe<RespondAllTemperatures> requester =
+                testKit.createTestProbe(RespondAllTemperatures.class);
         TestProbe<Command> device1 = testKit.createTestProbe(Command.class);
         TestProbe<Command> device2 = testKit.createTestProbe(Command.class);
 
@@ -53,21 +55,21 @@ public class DeviceQueryTest {
                         new DeviceRespondTemperature(0L, "device2", Optional.of(2.0))
                 )
         );
+        
+        RespondAllTemperatures response = requester.receiveMessage();
+        assertEquals(1L, response.requestId());
 
-        DeviceManager.RespondAllTemperatures response = requester.receiveMessage();
-        assertEquals(1L, response.requestId);
+        Map<String, TemperatureReading> expectedTemperatures = new HashMap<>();
+        expectedTemperatures.put("device1", new TemperatureReading.Temperature(1.0));
+        expectedTemperatures.put("device2", new TemperatureReading.Temperature(2.0));
 
-        Map<String, DeviceManager.TemperatureReading> expectedTemperatures = new HashMap<>();
-        expectedTemperatures.put("device1", new DeviceManager.Temperature(1.0));
-        expectedTemperatures.put("device2", new DeviceManager.Temperature(2.0));
-
-        assertEquals(expectedTemperatures, response.temperatures);
+        assertEquals(expectedTemperatures, response.temperatures());
     }
 
     @Test
     public void testReturnTemperatureNotAvailableForDevicesWithNoReadings() {
-        TestProbe<DeviceManager.RespondAllTemperatures> requester =
-                testKit.createTestProbe(DeviceManager.RespondAllTemperatures.class);
+        TestProbe<RespondAllTemperatures> requester =
+                testKit.createTestProbe(RespondAllTemperatures.class);
 
         TestProbe<Command> device1 = testKit.createTestProbe(Command.class);
         TestProbe<Command> device2 = testKit.createTestProbe(Command.class);
@@ -98,19 +100,19 @@ public class DeviceQueryTest {
                 )
         );
 
-        DeviceManager.RespondAllTemperatures response = requester.receiveMessage();
-        assertEquals(1L, response.requestId);
+        RespondAllTemperatures response = requester.receiveMessage();
+        assertEquals(1L, response.requestId());
 
-        Map<String, DeviceManager.TemperatureReading> expectedTemperatures = new HashMap<>();
-        expectedTemperatures.put("device1", DeviceManager.TemperatureNotAvailable.INSTANCE);
-        expectedTemperatures.put("device2", new DeviceManager.Temperature(2.0));
-        assertEquals(expectedTemperatures, response.temperatures);
+        Map<String, TemperatureReading> expectedTemperatures = new HashMap<>();
+        expectedTemperatures.put("device1", TemperatureReading.TemperatureNotAvailable.INSTANCE);
+        expectedTemperatures.put("device2", new TemperatureReading.Temperature(2.0));
+        assertEquals(expectedTemperatures, response.temperatures());
     }
 
     @Test
     public void testReturnDeviceNotAvailableIfDeviceStopsBeforeAnswering() {
-        TestProbe<DeviceManager.RespondAllTemperatures> requester =
-                testKit.createTestProbe(DeviceManager.RespondAllTemperatures.class);
+        TestProbe<RespondAllTemperatures> requester =
+                testKit.createTestProbe(RespondAllTemperatures.class);
 
         TestProbe<Command> device1 = testKit.createTestProbe(Command.class);
         TestProbe<Command> device2 = testKit.createTestProbe(Command.class);
@@ -134,19 +136,19 @@ public class DeviceQueryTest {
 
         device2.stop();
 
-        DeviceManager.RespondAllTemperatures response = requester.receiveMessage();
-        assertEquals(1L, response.requestId);
+        RespondAllTemperatures response = requester.receiveMessage();
+        assertEquals(1L, response.requestId());
 
-        Map<String, DeviceManager.TemperatureReading> expectedTempreatures = new HashMap<>();
-        expectedTempreatures.put("device1", new DeviceManager.Temperature(1.0));
-        expectedTempreatures.put("device2", DeviceManager.DeviceNotAvailable.INSTANCE);
-        assertEquals(expectedTempreatures, response.temperatures);
+        Map<String, TemperatureReading> expectedTempreatures = new HashMap<>();
+        expectedTempreatures.put("device1", new TemperatureReading.Temperature(1.0));
+        expectedTempreatures.put("device2", TemperatureReading.DeviceNotAvailable.INSTANCE);
+        assertEquals(expectedTempreatures, response.temperatures());
     }
 
     @Test
     public void testReturnDeviceNotAvailableIfDeviceStopsAfterAnswering() {
-        TestProbe<DeviceManager.RespondAllTemperatures> requester =
-                testKit.createTestProbe(DeviceManager.RespondAllTemperatures.class);
+        TestProbe<RespondAllTemperatures> requester =
+                testKit.createTestProbe(RespondAllTemperatures.class);
 
         TestProbe<Command> device1 = testKit.createTestProbe(Command.class);
         TestProbe<Command> device2 = testKit.createTestProbe(Command.class);
@@ -174,19 +176,19 @@ public class DeviceQueryTest {
 
         device2.stop();
 
-        DeviceManager.RespondAllTemperatures response = requester.receiveMessage();
-        assertEquals(1L, response.requestId);
+        RespondAllTemperatures response = requester.receiveMessage();
+        assertEquals(1L, response.requestId());
 
-        Map<String, DeviceManager.TemperatureReading> expectedTempreatures = new HashMap<>();
-        expectedTempreatures.put("device1", new DeviceManager.Temperature(1.0));
-        expectedTempreatures.put("device2", new DeviceManager.Temperature(2.0));
-        assertEquals(expectedTempreatures, response.temperatures);
+        Map<String, TemperatureReading> expectedTempreatures = new HashMap<>();
+        expectedTempreatures.put("device1", new TemperatureReading.Temperature(1.0));
+        expectedTempreatures.put("device2", new TemperatureReading.Temperature(2.0));
+        assertEquals(expectedTempreatures, response.temperatures());
     }
 
     @Test
     public void testReturnDeviceNotAvailableIfDeviceDoesNotAnswerInTime() {
-        TestProbe<DeviceManager.RespondAllTemperatures> requester =
-                testKit.createTestProbe(DeviceManager.RespondAllTemperatures.class);
+        TestProbe<RespondAllTemperatures> requester =
+                testKit.createTestProbe(RespondAllTemperatures.class);
 
         TestProbe<Command> device1 = testKit.createTestProbe(Command.class);
         TestProbe<Command> device2 = testKit.createTestProbe(Command.class);
@@ -210,12 +212,12 @@ public class DeviceQueryTest {
 
         // no reply from device2
 
-        DeviceManager.RespondAllTemperatures response = requester.receiveMessage();
-        assertEquals(1L, response.requestId);
+        RespondAllTemperatures response = requester.receiveMessage();
+        assertEquals(1L, response.requestId());
 
-        Map<String, DeviceManager.TemperatureReading> expectedTempreatures = new HashMap<>();
-        expectedTempreatures.put("device1", new DeviceManager.Temperature(1.0));
-        expectedTempreatures.put("device2", DeviceManager.DeviceTimedOut.INSTANCE);
-        assertEquals(expectedTempreatures, response.temperatures);
+        Map<String, TemperatureReading> expectedTempreatures = new HashMap<>();
+        expectedTempreatures.put("device1", new TemperatureReading.Temperature(1.0));
+        expectedTempreatures.put("device2", TemperatureReading.DeviceTimedOut.INSTANCE);
+        assertEquals(expectedTempreatures, response.temperatures());
     }
 }

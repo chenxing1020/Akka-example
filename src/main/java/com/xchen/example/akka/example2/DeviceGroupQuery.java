@@ -3,17 +3,23 @@ package com.xchen.example.akka.example2;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.*;
-import com.xchen.example.akka.example2.model.*;
+import com.xchen.example.akka.example2.model.DeviceRespondTemperature;
+import com.xchen.example.akka.example2.model.RespondAllTemperatures;
+import com.xchen.example.akka.example2.model.TemperatureReading;
+import com.xchen.example.akka.example2.model.command.*;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 public class DeviceGroupQuery extends AbstractBehavior<Command> {
 
     public static Behavior<Command> create(
             Map<String, ActorRef<Command>> deviceIdToActor,
             long requestId,
-            ActorRef<DeviceManager.RespondAllTemperatures> requester,
+            ActorRef<RespondAllTemperatures> requester,
             Duration timeout) {
         return Behaviors.setup(context -> Behaviors.withTimers(
                 timers ->
@@ -22,11 +28,11 @@ public class DeviceGroupQuery extends AbstractBehavior<Command> {
     }
 
     private final long requestId;
-    private final ActorRef<DeviceManager.RespondAllTemperatures> requester;
+    private final ActorRef<RespondAllTemperatures> requester;
 
     private DeviceGroupQuery(Map<String, ActorRef<Command>> deviceIdToActor,
                              long requestId,
-                             ActorRef<DeviceManager.RespondAllTemperatures> requester,
+                             ActorRef<RespondAllTemperatures> requester,
                              Duration timeout,
                              ActorContext<Command> context,
                              TimerScheduler<Command> timers) {
@@ -38,14 +44,14 @@ public class DeviceGroupQuery extends AbstractBehavior<Command> {
 
         ActorRef<DeviceRespondTemperature> respondTemperatureAdapter =
                 context.messageAdapter(DeviceRespondTemperature.class, DeviceGroupQueryRespondTemperature::new);
-        for (Map.Entry<String, ActorRef<com.xchen.example.akka.example2.model.Command>> entry : deviceIdToActor.entrySet()) {
+        for (Map.Entry<String, ActorRef<Command>> entry : deviceIdToActor.entrySet()) {
             context.watchWith(entry.getValue(), new DeviceGroupQueryDeviceTerminated(entry.getKey()));
             entry.getValue().tell(new DeviceReadTemperature(0L, respondTemperatureAdapter));
         }
         stillWaiting = new HashSet<>(deviceIdToActor.keySet());
     }
 
-    private Map<String, DeviceManager.TemperatureReading> repliesSoFar = new HashMap<>();
+    private final Map<String, TemperatureReading> repliesSoFar = new HashMap<>();
     private final Set<String> stillWaiting;
 
     @Override
@@ -59,7 +65,7 @@ public class DeviceGroupQuery extends AbstractBehavior<Command> {
 
     private Behavior<Command> onCollectionTimeout(DeviceGroupQueryCollectionTimeout timeout) {
         for (String deviceId : stillWaiting) {
-            repliesSoFar.put(deviceId, DeviceManager.DeviceTimedOut.INSTANCE);
+            repliesSoFar.put(deviceId, TemperatureReading.DeviceTimedOut.INSTANCE);
         }
         stillWaiting.clear();
         return respondWhenAllCollected();
@@ -67,18 +73,18 @@ public class DeviceGroupQuery extends AbstractBehavior<Command> {
 
     private Behavior<Command> onDeviceTerminated(DeviceGroupQueryDeviceTerminated terminated) {
         if (stillWaiting.contains(terminated.deviceId())) {
-            repliesSoFar.put(terminated.deviceId(), DeviceManager.DeviceNotAvailable.INSTANCE);
+            repliesSoFar.put(terminated.deviceId(), TemperatureReading.DeviceNotAvailable.INSTANCE);
             stillWaiting.remove(terminated.deviceId());
         }
         return respondWhenAllCollected();
     }
 
     private Behavior<Command> onRespondTemperature(DeviceGroupQueryRespondTemperature r) {
-        DeviceManager.TemperatureReading reading =
+        TemperatureReading reading =
                 r.response()
                         .value()
-                        .map(v -> (DeviceManager.TemperatureReading) new DeviceManager.Temperature(v))
-                        .orElse(DeviceManager.TemperatureNotAvailable.INSTANCE);
+                        .map(v -> (TemperatureReading) new TemperatureReading.Temperature(v))
+                        .orElse(TemperatureReading.TemperatureNotAvailable.INSTANCE);
         String deviceId = r.response().deviceId();
         repliesSoFar.put(deviceId, reading);
         stillWaiting.remove(deviceId);
@@ -87,7 +93,7 @@ public class DeviceGroupQuery extends AbstractBehavior<Command> {
 
     private Behavior<Command> respondWhenAllCollected() {
         if (stillWaiting.isEmpty()) {
-            requester.tell(new DeviceManager.RespondAllTemperatures(requestId, repliesSoFar));
+            requester.tell(new RespondAllTemperatures(requestId, repliesSoFar));
             return Behaviors.stopped();
         } else {
             return this;
